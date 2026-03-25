@@ -1,0 +1,10 @@
+pyproject.toml
+keystroke_count/__init__.py
+keystroke_count/cli.py
+keystroke_count/tracker.py
+keystroke_count.egg-info/PKG-INFO
+keystroke_count.egg-info/SOURCES.txt
+keystroke_count.egg-info/dependency_links.txt
+keystroke_count.egg-info/entry_points.txt
+keystroke_count.egg-info/requires.txt
+keystroke_count.egg-info/top_level.txt

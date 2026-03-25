@@ -1,0 +1,2 @@
+[console_scripts]
+keystroke-count = keystroke_count.cli:main
