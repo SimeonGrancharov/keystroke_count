@@ -120,6 +120,34 @@ def cmd_show(_args) -> None:
         print(f"  All-time: {all_total:,} keystrokes across {len(data)} days")
 
 
+def cmd_heatmap(args) -> None:
+    data = get_data()
+    if not data:
+        print("No data recorded yet.")
+        return
+
+    days = args.days
+    if days:
+        cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
+        filtered = {d: v for d, v in data.items() if d >= cutoff}
+    else:
+        filtered = data
+
+    if not filtered:
+        print(f"No data in the last {days} days.")
+        return
+
+    key_counts: dict[str, int] = {}
+    for day_data in filtered.values():
+        for key, count in day_data.get("keys", {}).items():
+            key_counts[key] = key_counts.get(key, 0) + count
+
+    total = sum(v["total"] for v in filtered.values())
+
+    from keystroke_count.heatmap import render
+    render(key_counts, total, len(filtered))
+
+
 def cmd_reset(_args) -> None:
     from keystroke_count.tracker import DATA_FILE
 
@@ -153,6 +181,10 @@ def main() -> None:
     stats_parser.add_argument("-k", "--keys", action="store_true", help="Show per-key breakdown")
 
     subparsers.add_parser("show", help="Show a dashboard of keystroke data")
+
+    heatmap_parser = subparsers.add_parser("heatmap", help="Show keyboard heatmap")
+    heatmap_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
+
     subparsers.add_parser("reset", help="Delete all recorded data")
 
     args = parser.parse_args()
@@ -164,6 +196,7 @@ def main() -> None:
         "today": cmd_today,
         "stats": cmd_stats,
         "show": cmd_show,
+        "heatmap": cmd_heatmap,
         "reset": cmd_reset,
     }
 
