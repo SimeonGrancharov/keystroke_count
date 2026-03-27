@@ -64,6 +64,12 @@ keystroke-count heatmap
 # Show keyboard heatmap for last 7 days
 keystroke-count heatmap -d 7
 
+# Show top 5 apps bar chart (all time)
+keystroke-count apps
+
+# Show top 5 apps bar chart for last 7 days
+keystroke-count apps -d 7
+
 # Delete all recorded data
 keystroke-count reset
 ```

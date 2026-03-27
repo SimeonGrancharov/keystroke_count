@@ -169,6 +169,38 @@ def cmd_heatmap(args) -> None:
     render(key_counts, total, len(filtered))
 
 
+def cmd_apps(args) -> None:
+    data = get_all_data()
+    if not data:
+        print("No data recorded yet.")
+        return
+
+    days = args.days
+    if days:
+        cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
+        filtered = {d: v for d, v in data.items() if d >= cutoff}
+    else:
+        filtered = data
+
+    if not filtered:
+        print(f"No data in the last {days} days.")
+        return
+
+    app_counts: dict[str, int] = {}
+    for day_data in filtered.values():
+        for app, count in day_data.get("apps", {}).items():
+            app_counts[app] = app_counts.get(app, 0) + count
+
+    if not app_counts:
+        print("No app data recorded yet.")
+        return
+
+    total = sum(v["total"] for v in filtered.values())
+
+    from keystroke_count.apps import render
+    render(app_counts, total, len(filtered))
+
+
 def cmd_reset(_args) -> None:
     from keystroke_count.tracker import ARCHIVE_FILE, DATA_FILE
 
@@ -210,6 +242,9 @@ def main() -> None:
     heatmap_parser = subparsers.add_parser("heatmap", help="Show keyboard heatmap")
     heatmap_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
 
+    apps_parser = subparsers.add_parser("apps", help="Show top 5 apps bar chart")
+    apps_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
+
     subparsers.add_parser("reset", help="Delete all recorded data")
 
     args = parser.parse_args()
@@ -222,6 +257,7 @@ def main() -> None:
         "stats": cmd_stats,
         "show": cmd_show,
         "heatmap": cmd_heatmap,
+        "apps": cmd_apps,
         "reset": cmd_reset,
     }
 
