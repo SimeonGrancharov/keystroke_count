@@ -9,7 +9,12 @@ from pynput import keyboard
 
 DATA_DIR = Path.home() / ".keystroke_count"
 DATA_FILE = DATA_DIR / "data.json"
+ARCHIVE_FILE = DATA_DIR / "archive.json"
 PID_FILE = DATA_DIR / "daemon.pid"
+
+
+def _same_week(d1: date, d2: date) -> bool:
+    return d1.isocalendar()[:2] == d2.isocalendar()[:2]
 
 
 def get_data() -> dict:
@@ -25,6 +30,55 @@ def save_data(data: dict) -> None:
         json.dump(data, f, indent=2)
 
 
+def get_archive() -> dict:
+    if ARCHIVE_FILE.exists():
+        with open(ARCHIVE_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_archive(data: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(ARCHIVE_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def rotate_weekly() -> None:
+    """Move previous-week entries from data.json into archive.json."""
+    if not DATA_FILE.exists():
+        return
+
+    with open(DATA_FILE) as f:
+        data = json.load(f)
+
+    if not data:
+        return
+
+    today = date.today()
+    current_week = {}
+    old_entries = {}
+
+    for day_key, day_data in data.items():
+        if _same_week(date.fromisoformat(day_key), today):
+            current_week[day_key] = day_data
+        else:
+            old_entries[day_key] = day_data
+
+    if not old_entries:
+        return
+
+    archive = get_archive()
+    archive.update(old_entries)
+    save_archive(archive)
+    save_data(current_week)
+
+
+def get_all_data() -> dict:
+    """Get merged current + archive data."""
+    rotate_weekly()
+    return {**get_archive(), **get_data()}
+
+
 def key_to_label(key) -> str:
     try:
         return key.char if key.char else "unknown"
@@ -38,11 +92,27 @@ class KeystrokeTracker:
         self.flush_counter = 0
         self.flush_every = 50
 
+    def _maybe_rotate(self) -> None:
+        """Archive old week data from in-memory state."""
+        today = date.today()
+        old_keys = [
+            day_key for day_key in self.data
+            if not _same_week(date.fromisoformat(day_key), today)
+        ]
+        if not old_keys:
+            return
+
+        archive = get_archive()
+        for key in old_keys:
+            archive[key] = self.data.pop(key)
+        save_archive(archive)
+
     def on_press(self, key) -> None:
         today = date.today().isoformat()
         label = key_to_label(key)
 
         if today not in self.data:
+            self._maybe_rotate()
             self.data[today] = {"total": 0, "keys": {}}
 
         self.data[today]["total"] += 1

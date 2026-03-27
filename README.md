@@ -39,8 +39,14 @@ keystroke-count stats
 # Show last 7 days with per-key breakdown
 keystroke-count stats -d 7 -k
 
+# Show keyboard heatmap (all time)
+keystroke-count heatmap
+
+# Show keyboard heatmap for last 7 days
+keystroke-count heatmap -d 7
+
 # Delete all recorded data
 keystroke-count reset
 ```
 
-Data is stored in `~/.keystroke_count/data.json`.
+Data is stored in `~/.keystroke_count/data.json` (current week) and `~/.keystroke_count/archive.json` (past weeks).

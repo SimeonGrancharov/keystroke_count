@@ -2,7 +2,7 @@ import argparse
 import sys
 from datetime import date, timedelta
 
-from keystroke_count.tracker import KeystrokeTracker, get_data
+from keystroke_count.tracker import KeystrokeTracker, get_all_data, get_data
 
 
 def cmd_start(args) -> None:
@@ -30,7 +30,7 @@ def cmd_today(_args) -> None:
 
 
 def cmd_stats(args) -> None:
-    data = get_data()
+    data = get_all_data()
     if not data:
         print("No data recorded yet.")
         return
@@ -71,7 +71,7 @@ def cmd_stats(args) -> None:
 
 
 def cmd_show(_args) -> None:
-    data = get_data()
+    data = get_all_data()
     today_key = date.today().isoformat()
     today_data = data.get(today_key)
 
@@ -121,7 +121,7 @@ def cmd_show(_args) -> None:
 
 
 def cmd_heatmap(args) -> None:
-    data = get_data()
+    data = get_all_data()
     if not data:
         print("No data recorded yet.")
         return
@@ -149,15 +149,16 @@ def cmd_heatmap(args) -> None:
 
 
 def cmd_reset(_args) -> None:
-    from keystroke_count.tracker import DATA_FILE
+    from keystroke_count.tracker import ARCHIVE_FILE, DATA_FILE
 
-    if not DATA_FILE.exists():
+    if not DATA_FILE.exists() and not ARCHIVE_FILE.exists():
         print("No data to reset.")
         return
 
     confirm = input("Are you sure you want to delete all keystroke data? [y/N] ")
     if confirm.lower() == "y":
-        DATA_FILE.unlink()
+        DATA_FILE.unlink(missing_ok=True)
+        ARCHIVE_FILE.unlink(missing_ok=True)
         print("Data reset.")
     else:
         print("Cancelled.")
