@@ -4,3 +4,4 @@ Version: 0.1.0
 Summary: CLI keystroke counter for macOS
 Requires-Python: >=3.10
 Requires-Dist: pynput>=1.7.6
+Requires-Dist: pyobjc-framework-Quartz>=10.0

@@ -5,7 +5,23 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from Quartz import CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListExcludeDesktopElements, kCGWindowListOptionOnScreenOnly
 from pynput import keyboard
+
+
+def _active_app() -> str:
+    try:
+        windows = CGWindowListCopyWindowInfo(
+            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+            kCGNullWindowID,
+        )
+        for window in windows:
+            if window.get("kCGWindowLayer", -1) == 0:
+                return window.get("kCGWindowOwnerName", "Unknown")
+    except Exception:
+        pass
+    return "Unknown"
+
 
 DATA_DIR = Path.home() / ".keystroke_count"
 DATA_FILE = DATA_DIR / "data.json"
@@ -87,8 +103,9 @@ def key_to_label(key) -> str:
 
 
 class KeystrokeTracker:
-    def __init__(self) -> None:
+    def __init__(self, debug: bool = False) -> None:
         self.data = get_data()
+        self.debug = debug
         self.flush_counter = 0
         self.flush_every = 50
 
@@ -113,17 +130,28 @@ class KeystrokeTracker:
 
         if today not in self.data:
             self._maybe_rotate()
-            self.data[today] = {"total": 0, "keys": {}}
+            self.data[today] = {"total": 0, "keys": {}, "apps": {}}
 
-        self.data[today]["total"] += 1
-        self.data[today]["keys"][label] = self.data[today]["keys"].get(label, 0) + 1
+        day = self.data[today]
+        if "apps" not in day:
+            day["apps"] = {}
+
+        app = _active_app()
+        if self.debug:
+            print(f"[DEBUG] Key: {label} | App: {app}", flush=True)
+        day["total"] += 1
+        day["keys"][label] = day["keys"].get(label, 0) + 1
+        day["apps"][app] = day["apps"].get(app, 0) + 1
 
         self.flush_counter += 1
         if self.flush_counter >= self.flush_every:
             save_data(self.data)
             self.flush_counter = 0
 
-    def start(self, quiet: bool = False) -> None:
+    def start(self, quiet: bool = False, foreground: bool = False, debug: bool = False) -> None:
+        if debug:
+            self.debug = True
+            foreground = True
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
         if PID_FILE.exists():
@@ -135,6 +163,18 @@ class KeystrokeTracker:
                 sys.exit(0)
             except OSError:
                 PID_FILE.unlink()
+
+        if not foreground:
+            import subprocess
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "keystroke_count.cli", "start", "-f", "-q"],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
+            print(f"Tracker started (pid {proc.pid}).")
+            return
 
         PID_FILE.write_text(str(os.getpid()))
 

@@ -7,7 +7,7 @@ from keystroke_count.tracker import KeystrokeTracker, get_all_data, get_data
 
 def cmd_start(args) -> None:
     tracker = KeystrokeTracker()
-    tracker.start(quiet=args.quiet)
+    tracker.start(quiet=args.quiet, foreground=args.foreground, debug=args.debug)
 
 
 def cmd_stop(_args) -> None:
@@ -69,6 +69,18 @@ def cmd_stats(args) -> None:
         for key, count in top_keys:
             print(f"{key:<20} {count:>10,}")
 
+    if args.apps:
+        merged_apps: dict[str, int] = {}
+        for day_data in filtered.values():
+            for app, count in day_data.get("apps", {}).items():
+                merged_apps[app] = merged_apps.get(app, 0) + count
+
+        top_apps = sorted(merged_apps.items(), key=lambda x: x[1], reverse=True)[:20]
+        print(f"\n{'App':<24} {'Count':>10}")
+        print("-" * 36)
+        for app, count in top_apps:
+            print(f"{app:<24} {count:>10,}")
+
 
 def cmd_show(_args) -> None:
     data = get_all_data()
@@ -112,6 +124,15 @@ def cmd_show(_args) -> None:
         for key, count in top_keys:
             pct = count / today_data["total"] * 100
             print(f"    {key:<14} {count:>8,}  ({pct:.1f}%)")
+
+    # Top 5 apps today
+    if today_data and today_data.get("apps"):
+        top_apps = sorted(today_data["apps"].items(), key=lambda x: x[1], reverse=True)[:5]
+        print()
+        print("  Top apps today:")
+        for app, count in top_apps:
+            pct = count / today_data["total"] * 100
+            print(f"    {app:<20} {count:>8,}  ({pct:.1f}%)")
 
     # All-time
     if len(data) > 1:
@@ -172,7 +193,9 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
 
     start_parser = subparsers.add_parser("start", help="Start tracking keystrokes")
-    start_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress output (for background/autostart use)")
+    start_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress output")
+    start_parser.add_argument("-f", "--foreground", action="store_true", help="Run in foreground instead of daemonizing")
+    start_parser.add_argument("-d", "--debug", action="store_true", help="Run in foreground with debug logging")
     subparsers.add_parser("stop", help="Stop the tracker")
     subparsers.add_parser("status", help="Check if the tracker is running")
     subparsers.add_parser("today", help="Show today's keystroke count")
@@ -180,6 +203,7 @@ def main() -> None:
     stats_parser = subparsers.add_parser("stats", help="Show keystroke statistics")
     stats_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
     stats_parser.add_argument("-k", "--keys", action="store_true", help="Show per-key breakdown")
+    stats_parser.add_argument("-a", "--apps", action="store_true", help="Show per-app breakdown")
 
     subparsers.add_parser("show", help="Show a dashboard of keystroke data")
 

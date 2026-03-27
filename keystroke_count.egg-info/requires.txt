@@ -1,1 +1,2 @@
 pynput>=1.7.6
+pyobjc-framework-Quartz>=10.0

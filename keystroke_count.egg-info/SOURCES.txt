@@ -1,6 +1,8 @@
+README.md
 pyproject.toml
 keystroke_count/__init__.py
 keystroke_count/cli.py
+keystroke_count/heatmap.py
 keystroke_count/tracker.py
 keystroke_count.egg-info/PKG-INFO
 keystroke_count.egg-info/SOURCES.txt

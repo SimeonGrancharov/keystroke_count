@@ -1,6 +1,6 @@
 # keystroke-count
 
-A CLI keystroke counter for macOS.
+A CLI keystroke counter for macOS. Tracks keystrokes globally across all apps, with per-app and per-key breakdowns.
 
 ## Installation
 
@@ -10,16 +10,32 @@ Requires Python 3.10+.
 pip install .
 ```
 
-**Note:** macOS requires Accessibility permissions for the terminal app you run this from (System Settings > Privacy & Security > Accessibility).
+## Permissions
+
+The tracker needs two macOS permissions to capture keystrokes and detect the active app. Grant both to your terminal app (e.g. Ghostty, iTerm2, Terminal) **and** the Python binary:
+
+1. **Input Monitoring** — System Settings > Privacy & Security > Input Monitoring
+2. **Accessibility** — System Settings > Privacy & Security > Accessibility
+
+To find your Python binary path:
+
+```bash
+which python3
+```
+
+Use `Cmd+Shift+G` in the file picker to paste the path when adding it.
 
 ## Usage
 
 ```bash
-# Start tracking
+# Start tracking (background daemon)
 keystroke-count start
 
-# Start in quiet mode (for background/autostart use)
-keystroke-count start -q
+# Start in foreground
+keystroke-count start -f
+
+# Start in foreground with debug logging
+keystroke-count start -d
 
 # Stop tracking
 keystroke-count stop
@@ -30,7 +46,7 @@ keystroke-count status
 # Show today's count
 keystroke-count today
 
-# Show a dashboard with weekly chart and top keys
+# Show a dashboard with weekly chart, top keys, and top apps
 keystroke-count show
 
 # Show statistics (all time)
@@ -38,6 +54,9 @@ keystroke-count stats
 
 # Show last 7 days with per-key breakdown
 keystroke-count stats -d 7 -k
+
+# Show last 7 days with per-app breakdown
+keystroke-count stats -d 7 -a
 
 # Show keyboard heatmap (all time)
 keystroke-count heatmap
@@ -49,4 +68,6 @@ keystroke-count heatmap -d 7
 keystroke-count reset
 ```
 
-Data is stored in `~/.keystroke_count/data.json` (current week) and `~/.keystroke_count/archive.json` (past weeks).
+## Data storage
+
+Data is stored in `~/.keystroke_count/data.json` (current week) and `~/.keystroke_count/archive.json` (past weeks). Old week data is automatically rotated to the archive.
