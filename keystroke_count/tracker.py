@@ -2,14 +2,23 @@ import json
 import os
 import signal
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
 from Quartz import CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListExcludeDesktopElements, kCGWindowListOptionOnScreenOnly
 from pynput import keyboard
 
+_cached_app: str = "Unknown"
+_cached_at: float = 0.0
+_CACHE_TTL: float = 2.0
+
 
 def _active_app() -> str:
+    global _cached_app, _cached_at
+    now = time.monotonic()
+    if now - _cached_at < _CACHE_TTL:
+        return _cached_app
     try:
         windows = CGWindowListCopyWindowInfo(
             kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
@@ -17,10 +26,14 @@ def _active_app() -> str:
         )
         for window in windows:
             if window.get("kCGWindowLayer", -1) == 0:
-                return window.get("kCGWindowOwnerName", "Unknown")
+                _cached_app = window.get("kCGWindowOwnerName", "Unknown")
+                _cached_at = now
+                return _cached_app
     except Exception:
         pass
-    return "Unknown"
+    _cached_app = "Unknown"
+    _cached_at = now
+    return _cached_app
 
 
 DATA_DIR = Path.home() / ".keystroke_count"
