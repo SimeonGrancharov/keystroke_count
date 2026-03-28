@@ -14,6 +14,14 @@ HEAT = [
     ("\033[48;5;124m", "\033[1m\033[38;5;255m"),       # 7: red, bold white
 ]
 
+# F-key row: groups separated by gaps
+F_ROW = [
+    [("ESC", ["esc"], 4)],
+    [("F1", ["f1"], 4), ("F2", ["f2"], 4), ("F3", ["f3"], 4), ("F4", ["f4"], 4)],
+    [("F5", ["f5"], 4), ("F6", ["f6"], 4), ("F7", ["f7"], 4), ("F8", ["f8"], 4)],
+    [("F9", ["f9"], 4), ("F10", ["f10"], 4), ("F11", ["f11"], 4), ("F12", ["f12"], 4)],
+]
+
 # Keyboard layout: (row_indent, [(label, [data_keys], inner_width), ...])
 ROWS = [
     (0, [
@@ -81,20 +89,22 @@ ROWS = [
         ("ctrl",  ["ctrl"], 6),
         ("alt",   ["alt"], 5),
         ("cmd",   ["cmd"], 6),
-        ("SPACE", ["space"], 25),
+        ("SPACE", ["space"], 15),
         ("cmd",   ["cmd", "cmd_r"], 6),
         ("alt",   ["alt"], 5),
         ("ctrl",  ["ctrl"], 6),
     ]),
 ]
 
+ARROWS = {
+    "up":    ("▲",  ["up"]),
+    "down":  ("▼",  ["down"]),
+    "left":  ("◀",  ["left"]),
+    "right": ("▶",  ["right"]),
+}
+
 EXTRAS = [
-    ("ESC", ["esc"]),
     ("DEL", ["delete"]),
-    ("UP",  ["up"]),
-    ("DN",  ["down"]),
-    ("LT",  ["left"]),
-    ("RT",  ["right"]),
 ]
 
 
@@ -134,13 +144,37 @@ def _fmt(count, width):
     return s.center(width)[:width]
 
 
+def _render_key_group(keys, key_counts, thresholds):
+    """Render a group of keys as a bordered block, return list of lines."""
+    widths = [w for _, _, w in keys]
+    counts = []
+    heats = []
+    for _, data_keys, _ in keys:
+        c = sum(key_counts.get(k, 0) for k in data_keys)
+        counts.append(c)
+        heats.append(_level(c, thresholds))
+
+    top = "\u250c" + "\u252c".join("\u2500" * w for w in widths) + "\u2510"
+    label_cells = [_cell(label, w, heats[i]) for i, (label, _, w) in enumerate(keys)]
+    labels = "\u2502" + "\u2502".join(label_cells) + "\u2502"
+    count_cells = [_cell(_fmt(counts[i], w), w, heats[i]) for i, (_, _, w) in enumerate(keys)]
+    cnt = "\u2502" + "\u2502".join(count_cells) + "\u2502"
+    bot = "\u2514" + "\u2534".join("\u2500" * w for w in widths) + "\u2518"
+    return [top, labels, cnt, bot]
+
+
 def render(key_counts, total, num_days):
     # Gather all counts for heat scaling
     all_counts = []
+    for group in F_ROW:
+        for _, data_keys, _ in group:
+            all_counts.append(sum(key_counts.get(k, 0) for k in data_keys))
     for _, keys in ROWS:
         for _, data_keys, _ in keys:
             all_counts.append(sum(key_counts.get(k, 0) for k in data_keys))
     for _, data_keys in EXTRAS:
+        all_counts.append(sum(key_counts.get(k, 0) for k in data_keys))
+    for _, data_keys in ARROWS.values():
         all_counts.append(sum(key_counts.get(k, 0) for k in data_keys))
 
     thresholds = _thresholds(all_counts)
@@ -148,41 +182,78 @@ def render(key_counts, total, num_days):
     period = f"{num_days} day{'s' if num_days != 1 else ''}"
     print(f"\n  Keyboard Heatmap  --  {period}, {total:,} keystrokes\n")
 
-    for indent, keys in ROWS:
+    # F-key row (groups separated by gaps)
+    group_lines = [_render_key_group(g, key_counts, thresholds) for g in F_ROW]
+    gap = "  "
+    for line_idx in range(4):
+        print("  " + gap.join(gl[line_idx] for gl in group_lines))
+
+    def _row_lines(indent, keys):
         pad = " " * (indent + 2)
         widths = [w for _, _, w in keys]
-
         counts = []
         heats = []
         for _, data_keys, _ in keys:
             c = sum(key_counts.get(k, 0) for k in data_keys)
             counts.append(c)
             heats.append(_level(c, thresholds))
-
-        # Top border
-        print(pad + "\u250c" + "\u252c".join("\u2500" * w for w in widths) + "\u2510")
-
-        # Label line
         label_cells = [_cell(label, w, heats[i]) for i, (label, _, w) in enumerate(keys)]
-        print(pad + "\u2502" + "\u2502".join(label_cells) + "\u2502")
-
-        # Count line
         count_cells = [_cell(_fmt(counts[i], w), w, heats[i]) for i, (_, _, w) in enumerate(keys)]
-        print(pad + "\u2502" + "\u2502".join(count_cells) + "\u2502")
+        return [
+            pad + "\u250c" + "\u252c".join("\u2500" * w for w in widths) + "\u2510",
+            pad + "\u2502" + "\u2502".join(label_cells) + "\u2502",
+            pad + "\u2502" + "\u2502".join(count_cells) + "\u2502",
+            pad + "\u2514" + "\u2534".join("\u2500" * w for w in widths) + "\u2518",
+        ]
 
-        # Bottom border
-        print(pad + "\u2514" + "\u2534".join("\u2500" * w for w in widths) + "\u2518")
+    for indent, keys in ROWS[:-1]:
+        for line in _row_lines(indent, keys):
+            print(line)
 
-    # Extra keys (ESC, arrows, DEL)
-    parts = []
+    # Last row + arrow keys side by side
+    last_indent, last_keys = ROWS[-1]
+    row_lines = _row_lines(last_indent, last_keys)
+
+    # Extra keys (DEL) inline badge
+    extra_parts = []
     for label, data_keys in EXTRAS:
         c = sum(key_counts.get(k, 0) for k in data_keys)
         h = _level(c, thresholds)
         bg, fg = HEAT[h]
-        parts.append(f"{bg}{fg} {label} {c:,} {RESET}")
+        extra_parts.append(f"{bg}{fg} {label} {c:,} {RESET}")
+    del_str = "  " + "  ".join(extra_parts)
 
-    print()
-    print("  " + "  ".join(parts))
+    w = 4
+    arrow_data = {}
+    for direction, (label, data_keys) in ARROWS.items():
+        c = sum(key_counts.get(k, 0) for k in data_keys)
+        h = _level(c, thresholds)
+        arrow_data[direction] = (label, c, h)
+
+    lt_label, lt_count, lt_heat = arrow_data["left"]
+    rt_label, rt_count, rt_heat = arrow_data["right"]
+    up_label, up_count, up_heat = arrow_data["up"]
+    dn_label, dn_count, dn_heat = arrow_data["down"]
+
+    b = "\u2502"
+    gap = "  "
+    arrow_lines = [
+        "\u250c" + "\u2500" * w + "\u252c" + "\u2500" * w + "\u252c" + "\u2500" * w + "\u2510",
+        b + _cell(lt_label, w, lt_heat) + b + _cell(up_label, w, up_heat) + b + _cell(rt_label, w, rt_heat) + b,
+        b + _cell(_fmt(lt_count, w), w, lt_heat) + "\u251c" + "\u2500" * w + "\u2524" + _cell(_fmt(rt_count, w), w, rt_heat) + b,
+        b + _cell("", w, lt_heat) + b + _cell(dn_label, w, dn_heat) + b + _cell("", w, rt_heat) + b,
+        "\u2514" + "\u2500" * w + "\u2534" + "\u2500" * w + "\u2534" + "\u2500" * w + "\u2518",
+    ]
+
+    # Visible width of the last row (strip ANSI for padding)
+    import re
+    row_visible_width = len(re.sub(r"\033\[[^m]*m", "", row_lines[0]))
+
+    for i in range(max(len(row_lines), len(arrow_lines))):
+        left = row_lines[i] if i < len(row_lines) else " " * row_visible_width
+        right = arrow_lines[i] if i < len(arrow_lines) else ""
+        suffix = del_str if i == 0 else ""
+        print(left + gap + right + suffix)
 
     # Legend
     print()
