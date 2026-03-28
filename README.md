@@ -2,6 +2,19 @@
 
 A CLI keystroke counter for macOS. Tracks keystrokes globally across all apps, with per-app and per-key breakdowns.
 
+## Showcase
+
+# heatmap `keystroke-count heatmap`
+<img width="563" height="376" alt="image" src="https://github.com/user-attachments/assets/f3c5040a-09cd-40f1-a726-89eec37ed5dd" />
+
+# apps `keystroke-count apps`
+<img width="523" height="129" alt="image" src="https://github.com/user-attachments/assets/4c8c790c-b728-48c2-91ee-d9a18b04f5b7" />
+
+# stats `keystroke-count show`
+<img width="303" height="310" alt="image" src="https://github.com/user-attachments/assets/ed318a5e-4548-4c71-bf30-807c43690e66" />
+
+
+
 ## Installation
 
 Requires Python 3.10+.
