@@ -140,6 +140,9 @@ def cmd_show(_args) -> None:
         print()
         print(f"  All-time: {all_total:,} keystrokes across {len(data)} days")
 
+        top_day_key, top_day_data = max(data.items(), key=lambda item: item[1]["total"])
+        print(f"  Top day: {top_day_key} ({top_day_data['total']:,} keystrokes)")
+
 
 def cmd_heatmap(args) -> None:
     data = get_all_data()
