@@ -95,6 +95,12 @@ def cmd_show(_args) -> None:
     today_total = today_data["total"] if today_data else 0
     print(f"  Today: {today_total:,} keystrokes")
 
+    # Active mouse time today
+    today_mouse = today_data.get("mouse") if today_data else None
+    if today_mouse and today_mouse.get("active_seconds"):
+        from keystroke_count.mouse import format_duration
+        print(f"  Mouse: {format_duration(today_mouse['active_seconds'])} active")
+
     # Last 7 days
     last_7 = []
     for i in range(6, -1, -1):
@@ -204,6 +210,37 @@ def cmd_apps(args) -> None:
     render(app_counts, total, len(filtered))
 
 
+def cmd_mouse(args) -> None:
+    data = get_all_data()
+    if not data:
+        print("No data recorded yet.")
+        return
+
+    days = args.days
+    if days:
+        cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
+        filtered = {d: v for d, v in data.items() if d >= cutoff}
+    else:
+        filtered = data
+
+    if not filtered:
+        print(f"No data in the last {days} days.")
+        return
+
+    merged = {"moves": 0, "clicks": 0, "scrolls": 0, "distance": 0.0, "active_seconds": 0.0}
+    for day_data in filtered.values():
+        mouse = day_data.get("mouse", {})
+        for field in merged:
+            merged[field] += mouse.get(field, 0)
+
+    if not any(merged.values()):
+        print("No mouse data recorded yet.")
+        return
+
+    from keystroke_count.mouse import render
+    render(merged, len(filtered))
+
+
 def cmd_reset(_args) -> None:
     from keystroke_count.tracker import ARCHIVE_FILE, DATA_FILE
 
@@ -248,6 +285,9 @@ def main() -> None:
     apps_parser = subparsers.add_parser("apps", help="Show top 5 apps bar chart")
     apps_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
 
+    mouse_parser = subparsers.add_parser("mouse", help="Show mouse activity and active time")
+    mouse_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
+
     subparsers.add_parser("reset", help="Delete all recorded data")
 
     args = parser.parse_args()
@@ -261,6 +301,7 @@ def main() -> None:
         "show": cmd_show,
         "heatmap": cmd_heatmap,
         "apps": cmd_apps,
+        "mouse": cmd_mouse,
         "reset": cmd_reset,
     }
 

@@ -4,10 +4,16 @@ import signal
 import sys
 import time
 from datetime import date
+from math import hypot
 from pathlib import Path
 
 from Quartz import CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListExcludeDesktopElements, kCGWindowListOptionOnScreenOnly
-from pynput import keyboard
+from pynput import keyboard, mouse
+
+# Mouse activity tuning.
+MOUSE_IDLE_GAP = 5.0       # seconds; gaps longer than this are idle and not counted as active
+MOUSE_MOVE_SAMPLE = 0.05   # seconds; throttle on_move processing to ~20/sec
+FLUSH_INTERVAL = 5.0       # seconds; max wall-clock time between disk flushes
 
 _cached_app: str = "Unknown"
 _cached_at: float = 0.0
@@ -121,6 +127,40 @@ class KeystrokeTracker:
         self.debug = debug
         self.flush_counter = 0
         self.flush_every = 50
+        self._last_flush = 0.0
+        self._last_mouse_time = 0.0
+        self._last_move_sample = 0.0
+        self._last_pos: tuple[float, float] | None = None
+
+    @staticmethod
+    def _new_mouse() -> dict:
+        return {"moves": 0, "clicks": 0, "scrolls": 0, "distance": 0.0, "active_seconds": 0.0}
+
+    def _get_day(self) -> dict:
+        """Return today's record, rotating old weeks and ensuring all sub-keys exist."""
+        today = date.today().isoformat()
+        if today not in self.data:
+            self._maybe_rotate()
+            self.data[today] = {"total": 0, "keys": {}, "apps": {}, "mouse": self._new_mouse()}
+        day = self.data[today]
+        day.setdefault("keys", {})
+        day.setdefault("apps", {})
+        day.setdefault("mouse", self._new_mouse())
+        return day
+
+    def _maybe_flush(self, now: float) -> None:
+        self.flush_counter += 1
+        if self.flush_counter >= self.flush_every or now - self._last_flush >= FLUSH_INTERVAL:
+            save_data(self.data)
+            self.flush_counter = 0
+            self._last_flush = now
+
+    def _register_mouse_activity(self, day: dict, now: float) -> None:
+        """Accumulate active mouse time: count the gap since the last event unless it was idle."""
+        delta = now - self._last_mouse_time
+        if 0 < delta <= MOUSE_IDLE_GAP:
+            day["mouse"]["active_seconds"] += delta
+        self._last_mouse_time = now
 
     def _maybe_rotate(self) -> None:
         """Archive old week data from in-memory state."""
@@ -138,16 +178,9 @@ class KeystrokeTracker:
         save_archive(archive)
 
     def on_press(self, key) -> None:
-        today = date.today().isoformat()
+        now = time.monotonic()
         label = key_to_label(key)
-
-        if today not in self.data:
-            self._maybe_rotate()
-            self.data[today] = {"total": 0, "keys": {}, "apps": {}}
-
-        day = self.data[today]
-        if "apps" not in day:
-            day["apps"] = {}
+        day = self._get_day()
 
         app = _active_app()
         if self.debug:
@@ -156,10 +189,39 @@ class KeystrokeTracker:
         day["keys"][label] = day["keys"].get(label, 0) + 1
         day["apps"][app] = day["apps"].get(app, 0) + 1
 
-        self.flush_counter += 1
-        if self.flush_counter >= self.flush_every:
-            save_data(self.data)
-            self.flush_counter = 0
+        self._maybe_flush(now)
+
+    def on_move(self, x, y) -> None:
+        now = time.monotonic()
+        if now - self._last_move_sample < MOUSE_MOVE_SAMPLE:
+            return
+        gap = now - self._last_mouse_time
+        self._last_move_sample = now
+
+        day = self._get_day()
+        day["mouse"]["moves"] += 1
+        if self._last_pos is not None and gap <= MOUSE_IDLE_GAP:
+            day["mouse"]["distance"] += hypot(x - self._last_pos[0], y - self._last_pos[1])
+        self._last_pos = (x, y)
+
+        self._register_mouse_activity(day, now)
+        self._maybe_flush(now)
+
+    def on_click(self, x, y, button, pressed) -> None:
+        if not pressed:
+            return
+        now = time.monotonic()
+        day = self._get_day()
+        day["mouse"]["clicks"] += 1
+        self._register_mouse_activity(day, now)
+        self._maybe_flush(now)
+
+    def on_scroll(self, x, y, dx, dy) -> None:
+        now = time.monotonic()
+        day = self._get_day()
+        day["mouse"]["scrolls"] += 1
+        self._register_mouse_activity(day, now)
+        self._maybe_flush(now)
 
     def start(self, quiet: bool = False, foreground: bool = False, debug: bool = False) -> None:
         if debug:
@@ -200,9 +262,16 @@ class KeystrokeTracker:
         signal.signal(signal.SIGTERM, cleanup)
 
         if not quiet:
-            print(f"Tracking keystrokes (pid {os.getpid()}). Press Ctrl+C to stop.")
+            print(f"Tracking keystrokes and mouse (pid {os.getpid()}). Press Ctrl+C to stop.")
             print("Note: macOS requires Accessibility permissions for this app.")
 
+        self._last_flush = time.monotonic()
+        mouse_listener = mouse.Listener(
+            on_move=self.on_move,
+            on_click=self.on_click,
+            on_scroll=self.on_scroll,
+        )
+        mouse_listener.start()
         with keyboard.Listener(on_press=self.on_press) as listener:
             listener.join()
 
