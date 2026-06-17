@@ -286,7 +286,7 @@ def main() -> None:
     apps_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
 
     mouse_parser = subparsers.add_parser("mouse", help="Show mouse activity and active time")
-    mouse_parser.add_argument("-d", "--days", type=int, default=None, help="Number of days to show (default: all)")
+    mouse_parser.add_argument("-d", "--days", type=int, default=7, help="Number of days to show (default: 7; use 0 for all time)")
 
     subparsers.add_parser("reset", help="Delete all recorded data")
 
