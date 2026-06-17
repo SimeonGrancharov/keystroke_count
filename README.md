@@ -1,6 +1,6 @@
 # keystroke-count
 
-A CLI keystroke counter for macOS. Tracks keystrokes globally across all apps, with per-app and per-key breakdowns.
+A CLI keystroke counter for macOS. Tracks keystrokes globally across all apps, with per-app and per-key breakdowns, plus mouse/trackpad activity and active time.
 
 ## Showcase
 
@@ -83,9 +83,21 @@ keystroke-count apps
 # Show top 5 apps bar chart for last 7 days
 keystroke-count apps -d 7
 
+# Show mouse/trackpad activity and active time (all time)
+keystroke-count mouse
+
+# Show mouse activity for last 7 days
+keystroke-count mouse -d 7
+
 # Delete all recorded data
 keystroke-count reset
 ```
+
+## Mouse & trackpad tracking
+
+Alongside keystrokes, the tracker captures mouse and trackpad activity through the same global listener — moves, clicks, scrolls, and cursor distance travelled. Trackpads and mice are tracked identically (macOS reports both through the same input events).
+
+It also derives **active time**: the amount of the day actually spent moving the device. Gaps longer than the idle threshold (5s by default) are not counted, so idle periods don't inflate the total. View it with `keystroke-count mouse`, or see today's active time on the `keystroke-count show` dashboard.
 
 ## Data storage
 
