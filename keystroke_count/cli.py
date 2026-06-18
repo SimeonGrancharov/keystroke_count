@@ -237,8 +237,13 @@ def cmd_mouse(args) -> None:
         print("No mouse data recorded yet.")
         return
 
+    daily = [
+        (day_key, filtered[day_key].get("mouse", {}))
+        for day_key in sorted(filtered.keys())
+    ]
+
     from keystroke_count.mouse import render
-    render(merged, len(filtered))
+    render(merged, len(filtered), daily)
 
 
 def cmd_reset(_args) -> None:
