@@ -12,6 +12,7 @@ from pynput import keyboard, mouse
 
 # Mouse activity tuning.
 MOUSE_IDLE_GAP = 5.0       # seconds; gaps longer than this are idle and not counted as active
+KEYBOARD_IDLE_GAP = 5.0    # seconds; gaps between keystrokes longer than this are idle
 MOUSE_MOVE_SAMPLE = 0.05   # seconds; throttle on_move processing to ~20/sec
 FLUSH_INTERVAL = 5.0       # seconds; max wall-clock time between disk flushes
 
@@ -131,21 +132,33 @@ class KeystrokeTracker:
         self._last_mouse_time = 0.0
         self._last_move_sample = 0.0
         self._last_pos: tuple[float, float] | None = None
+        self._last_key_time = 0.0
 
     @staticmethod
     def _new_mouse() -> dict:
         return {"moves": 0, "clicks": 0, "scrolls": 0, "distance": 0.0, "active_seconds": 0.0}
+
+    @staticmethod
+    def _new_keyboard() -> dict:
+        return {"active_seconds": 0.0}
 
     def _get_day(self) -> dict:
         """Return today's record, rotating old weeks and ensuring all sub-keys exist."""
         today = date.today().isoformat()
         if today not in self.data:
             self._maybe_rotate()
-            self.data[today] = {"total": 0, "keys": {}, "apps": {}, "mouse": self._new_mouse()}
+            self.data[today] = {
+                "total": 0,
+                "keys": {},
+                "apps": {},
+                "mouse": self._new_mouse(),
+                "keyboard": self._new_keyboard(),
+            }
         day = self.data[today]
         day.setdefault("keys", {})
         day.setdefault("apps", {})
         day.setdefault("mouse", self._new_mouse())
+        day.setdefault("keyboard", self._new_keyboard())
         return day
 
     def _maybe_flush(self, now: float) -> None:
@@ -161,6 +174,13 @@ class KeystrokeTracker:
         if 0 < delta <= MOUSE_IDLE_GAP:
             day["mouse"]["active_seconds"] += delta
         self._last_mouse_time = now
+
+    def _register_keyboard_activity(self, day: dict, now: float) -> None:
+        """Accumulate active typing time: count the gap since the last keystroke unless it was idle."""
+        delta = now - self._last_key_time
+        if 0 < delta <= KEYBOARD_IDLE_GAP:
+            day["keyboard"]["active_seconds"] += delta
+        self._last_key_time = now
 
     def _maybe_rotate(self) -> None:
         """Archive old week data from in-memory state."""
@@ -189,6 +209,7 @@ class KeystrokeTracker:
         day["keys"][label] = day["keys"].get(label, 0) + 1
         day["apps"][app] = day["apps"].get(app, 0) + 1
 
+        self._register_keyboard_activity(day, now)
         self._maybe_flush(now)
 
     def on_move(self, x, y) -> None:

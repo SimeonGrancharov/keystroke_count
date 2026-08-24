@@ -92,6 +92,12 @@ keystroke-count mouse -d 0
 # Show mouse activity for the last 30 days
 keystroke-count mouse -d 30
 
+# Show keyboard active time and typing pace (last 7 days)
+keystroke-count keyboard
+
+# Show keyboard active time for all time
+keystroke-count keyboard -d 0
+
 # Delete all recorded data
 keystroke-count reset
 ```
@@ -101,6 +107,10 @@ keystroke-count reset
 Alongside keystrokes, the tracker captures mouse and trackpad activity through the same global listener — moves, clicks, scrolls, and cursor distance travelled. Trackpads and mice are tracked identically (macOS reports both through the same input events).
 
 It also derives **active time**: the amount of the day actually spent moving the device. Gaps longer than the idle threshold (5s by default) are not counted, so idle periods don't inflate the total. View it with `keystroke-count mouse` (last 7 days by default; `-d 0` for all time), or see today's active time on the `keystroke-count show` dashboard.
+
+## Keyboard active time
+
+The same idle-gap approach is applied to typing: gaps between keystrokes shorter than the idle threshold (5s by default) count as active typing time. View it with `keystroke-count keyboard` (last 7 days by default; `-d 0` for all time), which also shows your typing pace (keys per active minute) and a daily breakdown. Today's active typing time also appears on the `keystroke-count show` dashboard.
 
 ## Data storage
 

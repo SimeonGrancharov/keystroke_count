@@ -95,11 +95,14 @@ def cmd_show(_args) -> None:
     today_total = today_data["total"] if today_data else 0
     print(f"  Today: {today_total:,} keystrokes")
 
-    # Active mouse time today
-    today_mouse = today_data.get("mouse") if today_data else None
-    if today_mouse and today_mouse.get("active_seconds"):
-        from keystroke_count.mouse import format_duration
-        print(f"  Mouse: {format_duration(today_mouse['active_seconds'])} active")
+    # Active time today, per device
+    from keystroke_count.mouse import format_duration
+    keyboard_seconds = (today_data or {}).get("keyboard", {}).get("active_seconds", 0.0)
+    mouse_seconds = (today_data or {}).get("mouse", {}).get("active_seconds", 0.0)
+    print()
+    print("  Active time today:")
+    print(f"    Keyboard  {format_duration(keyboard_seconds):>8}")
+    print(f"    Mouse     {format_duration(mouse_seconds):>8}")
 
     # Last 7 days
     last_7 = []
@@ -109,6 +112,7 @@ def cmd_show(_args) -> None:
 
     if any(last_7):
         week_total = sum(last_7)
+        print()
         print(f"  7-day: {week_total:,} keystrokes (avg {week_total // 7:,}/day)")
 
         # Sparkline bar chart for the week
@@ -246,6 +250,46 @@ def cmd_mouse(args) -> None:
     render(merged, len(filtered), daily)
 
 
+def cmd_keyboard(args) -> None:
+    data = get_all_data()
+    if not data:
+        print("No data recorded yet.")
+        return
+
+    days = args.days
+    if days:
+        cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
+        filtered = {d: v for d, v in data.items() if d >= cutoff}
+    else:
+        filtered = data
+
+    if not filtered:
+        print(f"No data in the last {days} days.")
+        return
+
+    # Only count keystrokes from days that have active time recorded, so the
+    # pace stays meaningful for days tracked before active time existed.
+    merged = {"active_seconds": 0.0, "total": 0}
+    for day_data in filtered.values():
+        active_seconds = day_data.get("keyboard", {}).get("active_seconds", 0.0)
+        if not active_seconds:
+            continue
+        merged["active_seconds"] += active_seconds
+        merged["total"] += day_data.get("total", 0)
+
+    if not merged["active_seconds"]:
+        print("No keyboard active time recorded yet.")
+        return
+
+    daily = [
+        (day_key, filtered[day_key].get("keyboard", {}))
+        for day_key in sorted(filtered.keys())
+    ]
+
+    from keystroke_count.keyboard import render
+    render(merged, len(filtered), daily)
+
+
 def cmd_reset(_args) -> None:
     from keystroke_count.tracker import ARCHIVE_FILE, DATA_FILE
 
@@ -293,6 +337,9 @@ def main() -> None:
     mouse_parser = subparsers.add_parser("mouse", help="Show mouse activity and active time")
     mouse_parser.add_argument("-d", "--days", type=int, default=7, help="Number of days to show (default: 7; use 0 for all time)")
 
+    keyboard_parser = subparsers.add_parser("keyboard", help="Show keyboard active time")
+    keyboard_parser.add_argument("-d", "--days", type=int, default=7, help="Number of days to show (default: 7; use 0 for all time)")
+
     subparsers.add_parser("reset", help="Delete all recorded data")
 
     args = parser.parse_args()
@@ -307,6 +354,7 @@ def main() -> None:
         "heatmap": cmd_heatmap,
         "apps": cmd_apps,
         "mouse": cmd_mouse,
+        "keyboard": cmd_keyboard,
         "reset": cmd_reset,
     }
 
